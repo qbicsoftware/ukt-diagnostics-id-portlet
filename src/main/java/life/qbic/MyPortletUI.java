@@ -29,7 +29,6 @@ import java.util.Properties;
 
 @Theme("mytheme")
 @SuppressWarnings("serial")
-@Widgetset("life.qbic.AppWidgetSet")
 public class MyPortletUI extends UI {
 
     private static Log log = LogFactoryUtil.getLog(MyPortletUI.class);

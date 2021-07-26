@@ -7,9 +7,9 @@
 	version="2.0">
 
 	<portlet>
-		<description>A simple request interface for patient/sample ID tuples.</description>
-		<portlet-name>UKT diagnostics ID</portlet-name>
-		<display-name>UKT diagnostics ID</display-name>
+		<description>${project.description}</description>
+		<portlet-name>${project.artifactId}</portlet-name>
+		<display-name>${project.name}</display-name>
 
 		<portlet-class>com.vaadin.server.VaadinPortlet</portlet-class>
 
@@ -30,9 +30,9 @@
 
 
 		<portlet-info>
-			<title>UKT diagnostics ID</title>
-			<short-title>UKT diagnostics ID</short-title>
-			<keywords>Vaadin 7</keywords>
+			<title>${project.name}</title>
+			<short-title>${project.description}</short-title>
+			<keywords>Vaadin 7, QBiC, Big Data, Bioinformatics</keywords>
 		</portlet-info>
 
 		<security-role-ref>

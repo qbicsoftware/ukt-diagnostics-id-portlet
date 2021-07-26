@@ -12985,10 +12985,8 @@ div.v-layout.v-horizontal.v-widget {
 	overflow: hidden;
 }
 
-.mytheme .textfield-red {
-	background: red;
-}
-
-.mytheme .textfield-green {
-	background: green;
+.mytheme .portlet-footer {
+	font-size: 9pt;
+	text-align: right;
+	padding-top: 50px;
 }
