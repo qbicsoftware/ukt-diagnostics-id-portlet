@@ -324,36 +324,34 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
      * @return True, if registration was successful, else false
      */
     private boolean registerBioSample(String biologicalSampleCode, String parent, String tissue) {
-        Map<String, Object> params = new HashMap<>();
-        Map<String, Object> map = new HashMap<>();
-        Map<String, Object> metadata = new HashMap<>();
-        List<String> parents = new ArrayList<>();
+        SampleCreation sampleCreation = new SampleCreation();
+        sampleCreation.setTypeId(new EntityTypePermId("Q_BIOLOGICAL_SAMPLE"));
+        sampleCreation.setSpaceId(new SpacePermId(SPACE));
+        List<SampleIdentifier> parents = new ArrayList<>();
+        parents.add(new SampleIdentifier(SPACE, null, parent));
+        sampleCreation.setParentIds(parents);
+        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s", SPACE, CODE, "E2")));
+        sampleCreation.setCode(biologicalSampleCode);
 
+        Map<String, String> metadata = new HashMap<>();
         if (tissue.equals("blood")){
             metadata.put("Q_PRIMARY_TISSUE", "PBMC");
         } else {
             metadata.put("Q_PRIMARY_TISSUE", "TUMOR_TISSUE_UNSPECIFIED");
         }
         metadata.put("Q_TISSUE_DETAILED", tissue);
-        parents.add(parent);
+        sampleCreation.setProperties(metadata);
 
-        map.put("code", biologicalSampleCode);
-        map.put("space", SPACE);
-        map.put("project", CODE);
-        map.put("experiment", CODE + "E2");
-        map.put("type", "Q_BIOLOGICAL_SAMPLE");
-        map.put("metadata", metadata);
-        map.put("parents", parents);
+        List<SampleCreation> registrationApplication = new ArrayList<>();
+        registrationApplication.add(sampleCreation);
 
-        params.put(biologicalSampleCode, map);
+        IOperation operation = new CreateSamplesOperation(registrationApplication);
 
-        try{
-            openBisClient.ingest("DSS1", "register-sample-batch", params);
-        } catch (Exception exc){
-            log.error(exc);
+        try {
+            handleOperations(operation);
+        } catch (RuntimeException e) {
             return false;
         }
-
         return true;
     }
 
