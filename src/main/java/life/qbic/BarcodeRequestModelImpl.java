@@ -23,6 +23,7 @@ import life.qbic.openbis.openbisclient.OpenBisClient;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.apache.groovy.json.internal.IO;
 
 import static life.qbic.helpers.BarcodeFunctions.checksum;
 
@@ -54,34 +55,44 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
     public void requestNewPatientSampleIdPair() {
         patientSampleIdPair = new String[2];
 
-        int[] sizes = getNumberOfSampleTypes();
-
-        // offset is +2, because there is always an attachment sample per project
-        String biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
-        String biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
-
-        // offset is +3, because of the previous created sample and the attachement
-        String testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
-        String testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
-        String patientId = CODE + "ENTITY-" + (sizes[1] + 1);
-
-        patientSampleIdPair[0] = patientId;
-        patientSampleIdPair[1] = testSampleCodeTumor;
-
-        // Logging code block
-        log.debug(String.format("Number of non-entity samples: %s", sizes[0]));
-        log.info(String.format("%s: New patient ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[0]));
-        log.info(String.format("%s: New tumor sample ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[1]));
-        log.info(String.format("%s: New tumor DNA sample ID created %s", AppInfo.getAppInfo(), biologicalSampleCodeTumor));
-        log.info(String.format("%s: New blood sample ID created %s", AppInfo.getAppInfo(), biologicalSampleCodeBlood));
-        log.info(String.format("%s: New blood DNA sample ID created %s", AppInfo.getAppInfo(), testSampleCodeBlood));
-
         // In case registration fails, return null
-        
-        if(!registerNewPatient(patientId, biologicalSampleCodeTumor,
-                biologicalSampleCodeBlood, testSampleCodeTumor, testSampleCodeBlood))
-            patientSampleIdPair = null;
-        
+        int retryCount = 7;
+        for (int attempt = 1; attempt <= retryCount; attempt++) {
+            int[] sizes = getNumberOfSampleTypes();
+
+            // offset is +2, because there is always an attachment sample per project
+            String biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
+            String biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
+
+            // offset is +3, because of the previous created sample and the attachement
+            String testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
+            String testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
+            String patientId = CODE + "ENTITY-" + (sizes[1] + 1);
+
+            patientSampleIdPair[0] = patientId;
+            patientSampleIdPair[1] = testSampleCodeTumor;
+
+            // Logging code block
+            log.debug(String.format("Number of non-entity samples: %s", sizes[0]));
+            if(!registerNewPatient(patientId, biologicalSampleCodeTumor,
+                biologicalSampleCodeBlood, testSampleCodeTumor, testSampleCodeBlood)) {
+                if (attempt == retryCount) {
+                    log.error("Max number of registration attempts tried but is still failing.");
+                    throw new RuntimeException("Registration failed.");
+                }
+            } else {
+                log.info(String.format("%s: New patient ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[0]));
+                log.info(String.format("%s: New tumor sample ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[1]));
+                log.info(String.format("%s: New tumor DNA sample ID created %s", AppInfo.getAppInfo(), biologicalSampleCodeTumor));
+                log.info(String.format("%s: New blood sample ID created %s", AppInfo.getAppInfo(), biologicalSampleCodeBlood));
+                log.info(String.format("%s: New blood DNA sample ID created %s", AppInfo.getAppInfo(), testSampleCodeBlood));
+                break;
+            }
+            try {
+                Thread.sleep(10000);
+            } catch ( InterruptedException ignored) {}
+        }
+
     }
 
 
@@ -228,9 +239,14 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
             return "";
         }
 
-        boolean sampleRegistrationWasSuccessfull = registerTestSample(sampleBarcode, biologicalSamplesOnly.get(0).getCode());
-
-        return sampleRegistrationWasSuccessfull ? sampleBarcode : "";
+        IOperation op = registerTestSample(sampleBarcode, "/" + SPACE + "/" + biologicalSamplesOnly.get(0).getCode());
+        try {
+            handleOperations(Arrays.asList(op));
+        } catch (RuntimeException e) {
+            log.error("Could not create and add new sample to patient!", e);
+            return "";
+        }
+        return sampleBarcode;
     }
 
     @Override
@@ -261,32 +277,42 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
      */
     private boolean registerNewPatient(String patientId, String biologicalSampleCodeTumor, String biologicalSampleCodeBlood,
                                        String testSampleCodeTumor, String testSampleCodeBlood) {
-        if (registerEntity(patientId) &&
-                registerBioSample(biologicalSampleCodeTumor, "/"+SPACE+"/"+patientId, "tumor tissue") &&
-                registerTestSample(testSampleCodeTumor, "/"+SPACE+"/"+biologicalSampleCodeTumor) &&
-                registerBioSample(biologicalSampleCodeBlood, "/"+SPACE+"/"+patientId, "blood") &&
-                registerTestSample(testSampleCodeBlood, "/"+SPACE+"/"+biologicalSampleCodeBlood)){
-            return true;
-        }
 
-        return false;
+        IOperation patientOp = registerEntity(patientId);
+        IOperation biologicalSampleCodeTumorOp = registerBioSample(biologicalSampleCodeTumor, "/"+SPACE+"/"+patientId, "tumor tissue");
+        IOperation testSampleCodeTumorOp = registerTestSample(testSampleCodeTumor, "/"+SPACE+"/"+biologicalSampleCodeTumor);
+        IOperation biologicalSampleCodeNormalOp = registerBioSample(biologicalSampleCodeBlood, "/"+SPACE+"/"+patientId, "blood");
+        IOperation testSampleCodeBloodOp = registerTestSample(testSampleCodeBlood, "/"+SPACE+"/"+biologicalSampleCodeBlood);
+
+        List<IOperation> operations = Arrays.asList(patientOp,
+            biologicalSampleCodeNormalOp,
+            biologicalSampleCodeTumorOp,
+            testSampleCodeTumorOp,
+            testSampleCodeBloodOp);
+        try {
+            handleOperations(operations);
+        } catch (RuntimeException e) {
+            log.error("Registration failed!", e);
+            return false;
+        }
+        return true;
     }
 
     /**
      * Registration of a new test sample
      * @param testSampleCode A code for the test sample type Q_TEST_SAMPLE
      * @param parent A code for the parent sample type Q_BIOLOGICAL_SAMPLE
-     * @return True, if registration was successful, else false
+     * @return an operation, if registration was successful
      */
-    private boolean registerTestSample(String testSampleCode, String parent) {
+    private IOperation registerTestSample(String testSampleCode, String parent) {
 
         SampleCreation sampleCreation = new SampleCreation();
         sampleCreation.setTypeId(new EntityTypePermId("Q_TEST_SAMPLE"));
         sampleCreation.setSpaceId(new SpacePermId(SPACE));
         List<SampleIdentifier> parents = new ArrayList<>();
-        parents.add(new SampleIdentifier(SPACE, null, parent));
+        parents.add(new SampleIdentifier(parent));
         sampleCreation.setParentIds(parents);
-        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s", SPACE, CODE, "E3")));
+        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s%s", SPACE, CODE, CODE, "E3")));
         sampleCreation.setCode(testSampleCode);
 
         Map<String, String> metadata = new HashMap<>();
@@ -297,18 +323,11 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
         registrationApplication.add(sampleCreation);
 
         IOperation operation = new CreateSamplesOperation(registrationApplication);
-
-        try {
-            handleOperations(operation);
-        } catch (RuntimeException e) {
-            return false;
-        }
-        return true;
+        return operation;
     }
 
-    private void handleOperations(IOperation operation) throws RuntimeException {
+    private void handleOperations(List<IOperation> operations) throws RuntimeException {
         SynchronousOperationExecutionOptions executionOptions = new SynchronousOperationExecutionOptions();
-        List<IOperation> operations = Arrays.asList(operation);
         try {
             openBisClient.getV3().executeOperations(openBisClient.getSessionToken(), operations, executionOptions);
         } catch (Exception e) {
@@ -321,16 +340,16 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
      * Registration of a new biological sample
      * @param biologicalSampleCode A code for the sample type Q_BIOLOGICAL_SAMPLE
      * @param parent A code for the parent sample type Q_BIOLOGICAL_ENTITY
-     * @return True, if registration was successful, else false
+     * @return an operation, if registration was successful, else false
      */
-    private boolean registerBioSample(String biologicalSampleCode, String parent, String tissue) {
+    private IOperation registerBioSample(String biologicalSampleCode, String parent, String tissue) {
         SampleCreation sampleCreation = new SampleCreation();
         sampleCreation.setTypeId(new EntityTypePermId("Q_BIOLOGICAL_SAMPLE"));
         sampleCreation.setSpaceId(new SpacePermId(SPACE));
         List<SampleIdentifier> parents = new ArrayList<>();
-        parents.add(new SampleIdentifier(SPACE, null, parent));
+        parents.add(new SampleIdentifier(parent));
         sampleCreation.setParentIds(parents);
-        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s", SPACE, CODE, "E2")));
+        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s%s", SPACE, CODE, CODE, "E2")));
         sampleCreation.setCode(biologicalSampleCode);
 
         Map<String, String> metadata = new HashMap<>();
@@ -346,45 +365,30 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
         registrationApplication.add(sampleCreation);
 
         IOperation operation = new CreateSamplesOperation(registrationApplication);
-
-        try {
-            handleOperations(operation);
-        } catch (RuntimeException e) {
-            return false;
-        }
-        return true;
+        return operation;
     }
 
     /**
      * Registration of a new test sample
      * @param patientId A code for the sample type Q_BIOLOGICAL_ENTITY
-     * @return True, if registration was successful, else false
+     * @return an operation, if registration was successful, else false
      */
-    private boolean registerEntity(String patientId){
-        Map<String, Object> params = new HashMap<>();
-        Map<String, Object> map = new HashMap<>();
-        Map<String, Object> metadata = new HashMap<>();
+    private IOperation registerEntity(String patientId){
+        SampleCreation sampleCreation = new SampleCreation();
+        sampleCreation.setTypeId(new EntityTypePermId("Q_BIOLOGICAL_ENTITY"));
+        sampleCreation.setSpaceId(new SpacePermId(SPACE));
+        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s%s", SPACE, CODE, CODE, "E1")));
+        sampleCreation.setCode(patientId);
 
+        Map<String, String> metadata = new HashMap<>();
         metadata.put("Q_NCBI_ORGANISM", "9606");
+        sampleCreation.setProperties(metadata);
 
-        map.put("code", patientId);
-        map.put("space", SPACE);
-        map.put("project", CODE);
-        map.put("experiment", CODE + "E1");
-        map.put("type", "Q_BIOLOGICAL_ENTITY");
-        map.put("metadata", metadata);
+        List<SampleCreation> registrationApplication = new ArrayList<>();
+        registrationApplication.add(sampleCreation);
 
-
-        params.put(patientId, map);
-
-        try{
-            openBisClient.ingest("DSS1", "register-sample-batch", params);
-        } catch (Exception exc){
-            log.error(exc);
-            return false;
-        }
-
-        return true;
+        IOperation operation = new CreateSamplesOperation(registrationApplication);
+        return operation;
     }
 
 
