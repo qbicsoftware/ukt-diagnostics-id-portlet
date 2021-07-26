@@ -1,10 +1,20 @@
 package life.qbic;
 
 import ch.ethz.sis.openbis.generic.asapi.v3.IApplicationServerApi;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.common.operation.IOperation;
 import ch.ethz.sis.openbis.generic.asapi.v3.dto.common.search.SearchResult;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.entitytype.id.EntityTypePermId;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.experiment.create.ExperimentCreation;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.experiment.id.ExperimentIdentifier;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.operation.SynchronousOperationExecutionOptions;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.project.id.ProjectIdentifier;
 import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.Sample;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.create.CreateSamplesOperation;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.create.SampleCreation;
 import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.fetchoptions.SampleFetchOptions;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.id.SampleIdentifier;
 import ch.ethz.sis.openbis.generic.asapi.v3.dto.sample.search.SampleSearchCriteria;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.space.id.SpacePermId;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
 import life.qbic.helpers.BarcodeFunctions;
@@ -269,32 +279,42 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
      * @return True, if registration was successful, else false
      */
     private boolean registerTestSample(String testSampleCode, String parent) {
-        Map<String, Object> params = new HashMap<>();
-        Map<String, Object> map = new HashMap<>();
-        Map<String, Object> metadata = new HashMap<>();
-        List<String> parents = new ArrayList<>();
 
+        SampleCreation sampleCreation = new SampleCreation();
+        sampleCreation.setTypeId(new EntityTypePermId("Q_TEST_SAMPLE"));
+        sampleCreation.setSpaceId(new SpacePermId(SPACE));
+        List<SampleIdentifier> parents = new ArrayList<>();
+        parents.add(new SampleIdentifier(SPACE, null, parent));
+        sampleCreation.setParentIds(parents);
+        sampleCreation.setExperimentId(new ExperimentIdentifier(String.format("/%s/%s/%s", SPACE, CODE, "E3")));
+        sampleCreation.setCode(testSampleCode);
+
+        Map<String, String> metadata = new HashMap<>();
         metadata.put("Q_SAMPLE_TYPE", "DNA");
-        parents.add(parent);
+        sampleCreation.setProperties(metadata);
 
-        map.put("code", testSampleCode);
-        map.put("space", SPACE);
-        map.put("project", CODE);
-        map.put("experiment", CODE + "E3");
-        map.put("type", "Q_TEST_SAMPLE");
-        map.put("metadata", metadata);
-        map.put("parents", parents);
+        List<SampleCreation> registrationApplication = new ArrayList<>();
+        registrationApplication.add(sampleCreation);
 
-        params.put(testSampleCode, map);
+        IOperation operation = new CreateSamplesOperation(registrationApplication);
 
-        try{
-            openBisClient.ingest("DSS1", "register-sample-batch", params);
-        } catch (Exception exc){
-            log.error(exc);
+        try {
+            handleOperations(operation);
+        } catch (RuntimeException e) {
             return false;
         }
-
         return true;
+    }
+
+    private void handleOperations(IOperation operation) throws RuntimeException {
+        SynchronousOperationExecutionOptions executionOptions = new SynchronousOperationExecutionOptions();
+        List<IOperation> operations = Arrays.asList(operation);
+        try {
+            openBisClient.getV3().executeOperations(openBisClient.getSessionToken(), operations, executionOptions);
+        } catch (Exception e) {
+            log.error("Registration failed for openBIS operation.", e);
+            throw new RuntimeException(e);
+        }
     }
 
     /**

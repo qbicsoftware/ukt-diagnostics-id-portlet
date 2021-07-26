@@ -8,7 +8,7 @@
 		<version>3.1.0</version>
 	</parent>
 	<artifactId>ukt-diagnostics</artifactId>
-	<version>1.2.3</version>
+	<version>1.2.4</version>
 	<name>QBiC Portlet Template</name>
 
 	<properties>
