@@ -67,11 +67,9 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
                 log.error("Max number of registration attempts tried but is still failing.");
                 throw new RuntimeException("Registration failed.");
             }
-            // offset is +2, because there is always an attachment sample per project
             String biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
             String biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
 
-            // offset is +3, because of the previous created sample and the attachement
             String testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
             String testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
             String patientId = patientRegistered ? CODE + "ENTITY-" + (sizes[1]): CODE + "ENTITY-" + (sizes[1]+1) ;
@@ -98,11 +96,9 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
                     }
                     // We try the next sample increment
                     sizes[0] = sizes[0] + 1;
-                    // offset is +2, because there is always an attachment sample per project
                     biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
                     biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
 
-                    // offset is +3, because of the previous created sample and the attachement
                     testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
                     testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
                     currentAttempt++;
