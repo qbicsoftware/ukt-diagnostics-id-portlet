@@ -91,18 +91,15 @@ public class BarcodeRequestPresenter {
                 loadingLabel.setValue("Patient and Sample IDs are requested ...");
             });
 
-
-            barcodeRequestModel.requestNewPatientSampleIdPair();
-
-            patientSampleIdPair = barcodeRequestModel.getNewPatientSampleIdPair();
-
-            if (patientSampleIdPair == null) {
-               UI.getCurrent().access(() ->
-                       Utils.Notification("Something went horribly wrong", "No barcodes created", "error"));
-            } else {
+            try {
+                barcodeRequestModel.requestNewPatientSampleIdPair();
+                patientSampleIdPair = barcodeRequestModel.getNewPatientSampleIdPair();
                 barcodeRequestView.getPatientIdField().setValue(patientSampleIdPair[0]);
                 barcodeRequestView.getSampleIdField().setValue(patientSampleIdPair[1]);
                 barcodeRequestView.getPatientIdInputField().addItem(patientSampleIdPair[0]);
+            } catch (Exception e) {
+                UI.getCurrent().access(() ->
+                    Utils.Notification("ID creation failed!", "No sample codes were created. Please try again.", "error"));
             }
 
             UI.getCurrent().access(() -> {
