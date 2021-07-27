@@ -11,7 +11,7 @@
 	</parent>
 	<artifactId>ukt-diagnostics</artifactId>
 	<version>1.2.4</version>
-	<name>QBiC Portlet Template</name>
+	<name>UKT diagnostics</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
