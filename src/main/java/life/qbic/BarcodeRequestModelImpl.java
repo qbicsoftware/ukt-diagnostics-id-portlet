@@ -440,6 +440,7 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
         sampleCreation.setCode(patientId);
 
         Map<String, String> metadata = new HashMap<>();
+        //Human
         metadata.put("Q_NCBI_ORGANISM", "9606");
         sampleCreation.setProperties(metadata);
 
