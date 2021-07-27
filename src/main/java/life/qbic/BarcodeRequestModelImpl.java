@@ -57,9 +57,16 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
 
         // In case registration fails, return null
         int retryCount = 7;
-        for (int attempt = 1; attempt <= retryCount; attempt++) {
-            int[] sizes = getNumberOfSampleTypes();
+        int[] sizes = getNumberOfSampleTypes();
 
+        boolean patientRegistered = false;
+        boolean samplesRegistered = false;
+
+        for (int attempt = 1; attempt <= retryCount; attempt++) {
+            if (attempt == retryCount) {
+                log.error("Max number of registration attempts tried but is still failing.");
+                throw new RuntimeException("Registration failed.");
+            }
             // offset is +2, because there is always an attachment sample per project
             String biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
             String biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
@@ -67,20 +74,44 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
             // offset is +3, because of the previous created sample and the attachement
             String testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
             String testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
-            String patientId = CODE + "ENTITY-" + (sizes[1] + 1);
+            String patientId = patientRegistered ? CODE + "ENTITY-" + (sizes[1]): CODE + "ENTITY-" + (sizes[1]+1) ;
 
             patientSampleIdPair[0] = patientId;
             patientSampleIdPair[1] = testSampleCodeTumor;
 
             // Logging code block
             log.debug(String.format("Number of non-entity samples: %s", sizes[0]));
-            if(!registerNewPatient(patientId, biologicalSampleCodeTumor,
-                biologicalSampleCodeBlood, testSampleCodeTumor, testSampleCodeBlood)) {
-                if (attempt == retryCount) {
-                    log.error("Max number of registration attempts tried but is still failing.");
-                    throw new RuntimeException("Registration failed.");
-                }
+            if (!patientRegistered && !registerPatientOnly(patientId)) {
+                // We increase the patient number if the registration failed and try again
+                sizes[1] = sizes[1] + 1;
             } else {
+                patientRegistered = true;
+                // This should be sufficient given the current usage ratio to avoid sample
+                // registration failures due to to many parallel requests.
+                int sampleRegistrationAttempts = 100;
+                int currentAttempt = 0;
+                System.out.printf("Trying to register samples for patient %s%n", patientId);
+                while (!registerSamplesForPatient(patientId, biologicalSampleCodeTumor, biologicalSampleCodeBlood,
+                    testSampleCodeTumor, testSampleCodeBlood)) {
+                    if(currentAttempt == sampleRegistrationAttempts) {
+                        throw new RuntimeException(String.format("Sample registration for patient %s failed.", patientId));
+                    }
+                    // We try the next sample increment
+                    sizes[0] = sizes[0] + 1;
+                    // offset is +2, because there is always an attachment sample per project
+                    biologicalSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 1 );
+                    biologicalSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 2 );
+
+                    // offset is +3, because of the previous created sample and the attachement
+                    testSampleCodeBlood = createBarcodeFromInteger(sizes[0] + 3);
+                    testSampleCodeTumor = createBarcodeFromInteger(sizes[0] + 4);
+                    currentAttempt++;
+                }
+                patientSampleIdPair[1] = testSampleCodeTumor;
+                samplesRegistered = true;
+            }
+
+            if (patientRegistered && samplesRegistered){
                 log.info(String.format("%s: New patient ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[0]));
                 log.info(String.format("%s: New tumor sample ID created %s", AppInfo.getAppInfo(), patientSampleIdPair[1]));
                 log.info(String.format("%s: New tumor DNA sample ID created %s", AppInfo.getAppInfo(), biologicalSampleCodeTumor));
@@ -88,10 +119,11 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
                 log.info(String.format("%s: New blood DNA sample ID created %s", AppInfo.getAppInfo(), testSampleCodeBlood));
                 break;
             }
+
             try {
-                Thread.sleep(10000);
+                Thread.sleep(1000);
             } catch ( InterruptedException ignored) {}
-        }
+            }
 
     }
 
@@ -229,9 +261,9 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
             return "";
         }
 
-        int i = getNumberOfSampleTypes()[0];
+        int existingSamples = getNumberOfSampleTypes()[0];
 
-        String sampleBarcode = createBarcodeFromInteger(getNumberOfSampleTypes()[0] + 2);
+        String sampleBarcode = createBarcodeFromInteger(existingSamples + 1);
 
         if (sampleBarcode.isEmpty()){
             log.error("Retrieval of a new sample barcode failed. No new sample for an existing patient " +
@@ -239,13 +271,29 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
             return "";
         }
 
-        IOperation op = registerTestSample(sampleBarcode, "/" + SPACE + "/" + biologicalSamplesOnly.get(0).getCode());
-        try {
-            handleOperations(Arrays.asList(op));
-        } catch (RuntimeException e) {
-            log.error("Could not create and add new sample to patient!", e);
-            return "";
+        int maxAttempts = 100;
+        int attempt = 0;
+        boolean registrationSuccessful = false;
+
+        while (attempt <= maxAttempts && !registrationSuccessful) {
+            sampleBarcode = createBarcodeFromInteger(existingSamples + 1);
+            IOperation op = registerTestSample(sampleBarcode, "/" + SPACE + "/" + biologicalSamplesOnly.get(0).getCode());
+            try {
+                handleOperations(Arrays.asList(op));
+                registrationSuccessful = true;
+            } catch (RuntimeException e) {
+                log.error(String.format("Could not create and add new sample to patient %s!", patientID), e);
+            }
+            attempt++;
+            existingSamples++;
         }
+
+        if (attempt == maxAttempts) {
+            // that means no successful sample creation happened, we dont return
+            // any sample id to the user
+            sampleBarcode = "";
+        }
+
         return sampleBarcode;
     }
 
@@ -266,6 +314,18 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
                 .collect(Collectors.toList());
     }
 
+    private boolean registerPatientOnly(String patientId) {
+        IOperation patientOp = registerEntity(patientId);
+        List<IOperation> operations = Arrays.asList(patientOp);
+        try {
+            handleOperations(operations);
+        } catch (RuntimeException e) {
+            log.error(String.format("Registration of patient only for %s failed!", patientId), e);
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Registration of a new patient with samples
      * @param patientId A code for the sample type Q_BIOLOGICAL_ENTITY
@@ -275,16 +335,15 @@ public class BarcodeRequestModelImpl implements BarcodeRequestModel{
      * @param testSampleCodeTumor A code for the sample type Q_TEST_SAMPLE (Tumor)
      * @return True, if registration was successful, else false
      */
-    private boolean registerNewPatient(String patientId, String biologicalSampleCodeTumor, String biologicalSampleCodeBlood,
-                                       String testSampleCodeTumor, String testSampleCodeBlood) {
+    private boolean registerSamplesForPatient(String patientId, String biologicalSampleCodeTumor, String biologicalSampleCodeBlood,
+                                              String testSampleCodeTumor, String testSampleCodeBlood) {
 
-        IOperation patientOp = registerEntity(patientId);
         IOperation biologicalSampleCodeTumorOp = registerBioSample(biologicalSampleCodeTumor, "/"+SPACE+"/"+patientId, "tumor tissue");
         IOperation testSampleCodeTumorOp = registerTestSample(testSampleCodeTumor, "/"+SPACE+"/"+biologicalSampleCodeTumor);
         IOperation biologicalSampleCodeNormalOp = registerBioSample(biologicalSampleCodeBlood, "/"+SPACE+"/"+patientId, "blood");
         IOperation testSampleCodeBloodOp = registerTestSample(testSampleCodeBlood, "/"+SPACE+"/"+biologicalSampleCodeBlood);
 
-        List<IOperation> operations = Arrays.asList(patientOp,
+        List<IOperation> operations = Arrays.asList(
             biologicalSampleCodeNormalOp,
             biologicalSampleCodeTumorOp,
             testSampleCodeTumorOp,
