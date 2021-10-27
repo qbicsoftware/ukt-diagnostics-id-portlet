@@ -4,6 +4,19 @@ Changelog
 
 This project adheres to `Semantic Versioning <https://semver.org/>`_.
 
+1.2.5 (20021-07-27)
+----------------------------------------------
+
+**Added**
+
+**Fixed**
+
+**Dependencies**
+
+* com.vaadin 7.7.8 -> 7.7.28 (addresses CVE-2021-37714)
+
+**Deprecated**
+
 
 1.2.4 (20021-07-27)
 ----------------------------------------------
