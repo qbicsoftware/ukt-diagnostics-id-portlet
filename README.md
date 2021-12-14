@@ -1,7 +1,6 @@
 # UKT diagnostics ID portlet
 
 ## Current testing branch build status
-[![Build Status](https://qbic-intranet.am10.uni-tuebingen.de/jenkins/job/ukt_diagnostics_portlet/badge/icon)](https://qbic-intranet.am10.uni-tuebingen.de/jenkins/job/ukt_diagnostics_portlet/)
 [![CodeQL](https://github.com/qbicsoftware/ukt-diagnostics-id-portlet/actions/workflows/codeql-analysis.yml/badge.svg?branch=master)](https://github.com/qbicsoftware/ukt-diagnostics-id-portlet/actions/workflows/codeql-analysis.yml)
 
 **Description**
