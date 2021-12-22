@@ -10,7 +10,7 @@
 		<version>3.1.3</version>
 	</parent>
 	<artifactId>ukt-diagnostics</artifactId>
-	<version>1.2.8</version>
+	<version>1.2.9</version>
 	<name>UKT diagnostics</name>
 
 	<properties>
@@ -22,7 +22,7 @@
 		<liferay.version>6.2.5</liferay.version>
 		<liferay.maven.plugin.version>6.2.5</liferay.maven.plugin.version>
 		<jetty.plugin.version>9.4.35.v20201120</jetty.plugin.version>
-		<log4j.version>2.16.0</log4j.version>
+		<log4j.version>2.17.0</log4j.version>
 	</properties>
 	<packaging>war</packaging>
 	<!-- we only need to tell maven where to find our parent pom and other QBiC dependencies -->
