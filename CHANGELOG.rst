@@ -12,11 +12,17 @@ This project adheres to `Semantic Versioning <https://semver.org/>`_.
 **Fixed**
 
 * CVE-2021-44832
+* CVE-2019-2692
 
 **Dependencies**
 
 * ``org.apache.logging.log4j:log4j-core:2.17.0`` -> ``2.17.1``
 * ``org.apache.logging.log4j:log4j-api:2.17.0`` -> ``2.17.1``
+* ``org.powermock.powermock-module-junit4:1.6.4`` -> ``2.0.9``
+* ``org.powermock.powermock-api-mockito:1.6.4`` -> ``1.7.4``
+* ``javax.portlet.portlet-api:2.0`` -> ``3.0.1``
+* ``javax.servlet.javax.servlet-api:3.0.1`` -> ``4.0.1``
+* ``mysql.mysql-connector-java:5.1.6`` -> ``8.0.27``
 
 1.2.9 (2021-12-20)
 ----------------------------------------------
