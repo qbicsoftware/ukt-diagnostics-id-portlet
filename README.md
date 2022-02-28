@@ -1,3 +1,5 @@
+<div align="center">
+  
 # UKT diagnostics ID portlet
 
 [![Build Maven Package](https://github.com/qbicsoftware/ukt-diagnostics-id-portlet/actions/workflows/build_package.yml/badge.svg)](https://github.com/qbicsoftware/ukt-diagnostics-id-portlet/actions/workflows/build_package.yml)
@@ -8,10 +10,12 @@
 [![license](https://img.shields.io/github/license/qbicsoftware/ukt-diagnostics-id-portlet)](https://github.com/qbicsoftware/ukt-diagnostics-id-portlet/blob/main/LICENSE)
 ![language](https://img.shields.io/badge/language-java-blue.svg)
 
-##Description
+ </div>
+  
+## Description
 This portlet enables user from the UKT diagnostics department to request a new **patient/sample ID pair** and further, the creation of a new **sample ID** to an existing patient (requires a valid patient ID).
 
-##How to Run
+## How to Run
 
 First compile the project and build an executable java archive:
 
@@ -28,7 +32,7 @@ The WAR file will be created in the /target folder:
 ```
 The created war file can then be deployed on a portal system.
 
-##How to Use 
+## How to Use 
 
 Test environment
 ----------------
